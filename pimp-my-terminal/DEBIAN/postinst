@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+case "$1" in
+  configure)
+    echo "pimp-my-terminal : après installation, lancez « pimp-my-terminal » en tant qu’utilisateur."
+    echo "  Si vous acceptez chsh vers zsh, la désinstallation du paquet remettra ce seul utilisateur sur /bin/bash."
+    echo "  Sinon : « pimp-my-terminal --restore-shell » (tant que le script est installé)."
+    ;;
+esac
+exit 0

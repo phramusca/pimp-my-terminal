@@ -13,22 +13,61 @@ MESLO_FONTS=(
 
 usage() {
   echo "Usage: $0 [options]"
-  echo "  --no-fonts   Ne pas télécharger / installer les polices MesloLGS NF"
-  echo "  --no-chsh    Ne pas proposer de passer zsh comme shell de connexion"
-  echo "  -h, --help   Aide"
+  echo "  --no-fonts        Ne pas télécharger / installer les polices MesloLGS NF"
+  echo "  --no-chsh         Ne pas proposer de passer zsh comme shell de connexion"
+  echo "  --restore-shell   Remettre bash comme shell de connexion (avant de désinstaller zsh)"
+  echo "  -h, --help        Aide"
 }
 
 NO_FONTS=0
 NO_CHSH=0
+RESTORE_SHELL=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-fonts) NO_FONTS=1 ;;
     --no-chsh) NO_CHSH=1 ;;
+    --restore-shell) RESTORE_SHELL=1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Option inconnue: $1" >&2; usage >&2; exit 1 ;;
   esac
   shift
 done
+
+if [[ "$RESTORE_SHELL" -eq 1 ]]; then
+  if [[ "$(id -u)" -eq 0 ]]; then
+    echo "Lancez --restore-shell avec votre utilisateur (pas en root)." >&2
+    exit 1
+  fi
+  target="/bin/bash"
+  if [[ ! -x "$target" ]]; then
+    target="$(command -v bash 2>/dev/null || true)"
+  fi
+  if [[ -z "$target" || ! -x "$target" ]]; then
+    echo "bash introuvable ou non exécutable." >&2
+    exit 1
+  fi
+  current_shell="$(getent passwd "$USER" | cut -d: -f7)"
+  if [[ "$current_shell" == "$target" ]]; then
+    echo "Le shell de connexion est déjà : $target"
+    exit 0
+  fi
+  echo "Shell actuel dans /etc/passwd : $current_shell"
+  echo "Nouveau shell de connexion : $target"
+  if [[ -t 0 ]]; then
+    read -r -p "Exécuter chsh -s $target ? (mot de passe demandé) [o/N] " ans || true
+    if [[ ! "${ans:-n}" =~ ^[oOyY]$ ]]; then
+      echo "Annulé. Vous pouvez lancer : chsh -s $target"
+      exit 0
+    fi
+  fi
+  chsh -s "$target" || {
+    echo "chsh a échoué. En root : sudo usermod -s $target $USER" >&2
+    exit 1
+  }
+  rm -f "${HOME}/.config/pimp-my-terminal/login-shell-set-by-package"
+  echo "OK. Déconnectez-vous et reconnectez-vous (ou ouvrez un nouveau terminal de login)."
+  exit 0
+fi
 
 if [[ "$(id -u)" -eq 0 ]]; then
   echo "Ce script ne doit pas être lancé en root. Lancez-le avec votre utilisateur." >&2
@@ -37,7 +76,7 @@ fi
 
 for cmd in zsh git curl; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
-    echo "Commande introuvable : $cmd. Installez le paquet avec : sudo apt install ./pimp-my-terminal_1.0_all.deb" >&2
+    echo "Commande introuvable : $cmd. Installez le paquet avec : sudo apt install ./pimp-my-terminal_*_all.deb" >&2
     exit 1
   fi
 done
@@ -116,7 +155,10 @@ if [[ "$NO_CHSH" -eq 0 ]]; then
       read -r -p "    Exécuter chsh maintenant ? (mot de passe demandé) [o/N] " ans || true
     fi
     if [[ "${ans:-n}" =~ ^[oOyY]$ ]]; then
-      chsh -s "$zsh_path" || true
+      if chsh -s "$zsh_path"; then
+        mkdir -p "${HOME}/.config/pimp-my-terminal"
+        : >"${HOME}/.config/pimp-my-terminal/login-shell-set-by-package"
+      fi
     fi
   else
     echo "==> zsh est déjà le shell de connexion."

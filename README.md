@@ -20,3 +20,9 @@ pimp-my-terminal
 ```
 
 Exécuter `pimp-my-terminal` **en tant qu’utilisateur** (pas en root).
+
+### Désinstallation
+
+Si vous aviez accepté **`chsh`** vers zsh depuis `pimp-my-terminal`, un fichier marqueur est créé sous `~/.config/pimp-my-terminal/`. À la désinstallation du paquet, seul ce compte est repassé sur **`/bin/bash`**, pour que `sudo apt autoremove` puisse retirer `zsh` sans casser SSH.
+
+Les autres utilisateurs du système qui utilisent zsh ne sont pas modifiés. Hors de ce flux, utilisez `chsh -s /bin/bash` ou `sudo usermod -s /bin/bash `.

@@ -1,0 +1,24 @@
+#!/bin/sh
+set -e
+case "$1" in
+  remove|purge)
+    if [ ! -x /bin/bash ]; then
+      echo "pimp-my-terminal : /bin/bash absent ; vérifiez les shells dans /etc/passwd si besoin." >&2
+      exit 0
+    fi
+    awk -F: '{print $1 "\t" $6 "\t" $7}' /etc/passwd | while IFS="$(printf '\t')" read -r u home shell; do
+      [ -n "$u" ] || continue
+      [ -f "$home/.config/pimp-my-terminal/login-shell-set-by-package" ] || continue
+      case "$shell" in
+        *zsh*)
+          if usermod -s /bin/bash "$u" 2>/dev/null; then
+            echo "pimp-my-terminal : shell de connexion de « $u » → /bin/bash"
+            rm -f "$home/.config/pimp-my-terminal/login-shell-set-by-package"
+          fi
+          ;;
+      esac
+    done || true
+    echo "pimp-my-terminal : désinstallation terminée ; « sudo apt autoremove » peut retirer zsh sans casser SSH pour les comptes concernés."
+    ;;
+esac
+exit 0
