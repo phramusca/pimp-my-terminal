@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# Installation zsh + Oh My Zsh + Powerlevel10k + plugins + polices MesloLGS NF
+# Voir la doc : _wiki/linux/system/terminal.md
+set -euo pipefail
+
+MESLO_BASE="https://github.com/romkatv/powerlevel10k-media/raw/master"
+MESLO_FONTS=(
+  "MesloLGS%20NF%20Regular.ttf"
+  "MesloLGS%20NF%20Bold.ttf"
+  "MesloLGS%20NF%20Italic.ttf"
+  "MesloLGS%20NF%20Bold%20Italic.ttf"
+)
+
+usage() {
+  echo "Usage: $0 [options]"
+  echo "  --no-fonts   Ne pas télécharger / installer les polices MesloLGS NF"
+  echo "  --no-chsh    Ne pas proposer de passer zsh comme shell de connexion"
+  echo "  -h, --help   Aide"
+}
+
+NO_FONTS=0
+NO_CHSH=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --no-fonts) NO_FONTS=1 ;;
+    --no-chsh) NO_CHSH=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Option inconnue: $1" >&2; usage >&2; exit 1 ;;
+  esac
+  shift
+done
+
+if [[ "$(id -u)" -eq 0 ]]; then
+  echo "Ce script ne doit pas être lancé en root. Lancez-le avec votre utilisateur." >&2
+  exit 1
+fi
+
+for cmd in zsh git curl; do
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo "Commande introuvable : $cmd. Installez le paquet avec : sudo apt install ./pimp-my-terminal_1.0_all.deb" >&2
+    exit 1
+  fi
+done
+
+if [[ "$NO_FONTS" -eq 0 ]]; then
+  echo "==> Polices MesloLGS NF → ~/.local/share/fonts …"
+  mkdir -p "${HOME}/.local/share/fonts"
+  for f in "${MESLO_FONTS[@]}"; do
+    out="${HOME}/.local/share/fonts/$(printf '%s' "$f" | sed 's/%20/ /g')"
+    curl -fsSL -o "$out" "${MESLO_BASE}/${f}"
+  done
+  fc-cache -fv "${HOME}/.local/share/fonts" 2>/dev/null || true
+  echo "    Configurez votre terminal (Tilix, VS Code, etc.) sur la police « MesloLGS NF »."
+fi
+
+if [[ ! -d "${ZSH:-$HOME/.oh-my-zsh}" ]]; then
+  echo "==> Oh My Zsh…"
+  export RUNZSH=no
+  export CHSH=no
+  sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+else
+  echo "==> Oh My Zsh déjà présent, on saute l’installation."
+fi
+
+ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
+
+echo "==> Thème Powerlevel10k…"
+if [[ ! -d "$ZSH_CUSTOM/themes/powerlevel10k" ]]; then
+  git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$ZSH_CUSTOM/themes/powerlevel10k"
+else
+  echo "    Déjà cloné."
+fi
+
+echo "==> Plugins (syntax-highlighting, autosuggestions)…"
+if [[ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ]]; then
+  git clone --depth=1 https://github.com/zsh-users/zsh-syntax-highlighting.git "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
+fi
+if [[ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]]; then
+  git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions "$ZSH_CUSTOM/plugins/zsh-autosuggestions"
+fi
+
+ZSHRC="${ZSHRC:-$HOME/.zshrc}"
+if [[ ! -f "$ZSHRC" ]]; then
+  echo "Erreur: $ZSHRC introuvable après installation Oh My Zsh." >&2
+  exit 1
+fi
+
+echo "==> Configuration ~/.zshrc (thème + plugins)…"
+cp -a "$ZSHRC" "${ZSHRC}.bak.$(date +%Y%m%d%H%M%S)"
+
+# Thème
+if grep -qE '^[[:space:]]*ZSH_THEME=' "$ZSHRC"; then
+  sed -i 's/^[[:space:]]*ZSH_THEME=.*/ZSH_THEME="powerlevel10k\/powerlevel10k"/' "$ZSHRC"
+else
+  echo 'ZSH_THEME="powerlevel10k/powerlevel10k"' >> "$ZSHRC"
+fi
+
+# plugins=(...) — zsh-syntax-highlighting en dernier (recommandé)
+PLUGINS_LINE='plugins=(git z sudo zsh-autosuggestions zsh-syntax-highlighting)'
+if grep -qE '^[[:space:]]*plugins=\(' "$ZSHRC"; then
+  tmp="$(mktemp)"
+  awk '/^[[:space:]]*plugins=\(/ { print "'"$PLUGINS_LINE"'"; next } { print }' "$ZSHRC" > "$tmp"
+  mv "$tmp" "$ZSHRC"
+else
+  printf '\n# Pimp My Terminal (voir wiki linux/system/terminal)\n%s\n' "$PLUGINS_LINE" >> "$ZSHRC"
+fi
+
+if [[ "$NO_CHSH" -eq 0 ]]; then
+  current_shell="$(getent passwd "$USER" | cut -d: -f7)"
+  zsh_path="$(command -v zsh)"
+  if [[ "$current_shell" != "$zsh_path" ]]; then
+    echo "==> Shell de connexion actuel : $current_shell"
+    echo "    Pour utiliser zsh par défaut : chsh -s $zsh_path"
+    ans="n"
+    if [[ -t 0 ]]; then
+      read -r -p "    Exécuter chsh maintenant ? (mot de passe demandé) [o/N] " ans || true
+    fi
+    if [[ "${ans:-n}" =~ ^[oOyY]$ ]]; then
+      chsh -s "$zsh_path" || true
+    fi
+  else
+    echo "==> zsh est déjà le shell de connexion."
+  fi
+fi
+
+echo ""
+echo "Terminé. Ouvrez un **nouveau** terminal et lancez « zsh » si besoin, puis « p10k configure » pour l’assistant Powerlevel10k."
+echo "Sauvegarde de ~/.zshrc : ${ZSHRC}.bak.*"

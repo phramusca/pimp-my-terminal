@@ -1,0 +1,11 @@
+Package: pimp-my-terminal
+Version: 1.0
+Section: utils
+Priority: optional
+Architecture: all
+Depends: curl, zsh, git, fontconfig
+Maintainer: phramusca <phramusca@gmail.com>
+Description: Script d'installation zsh + Oh My Zsh + Powerlevel10k
+ Installe /usr/local/bin/pimp-my-terminal : Oh My Zsh, thème Powerlevel10k,
+ polices MesloLGS NF, plugins git/z/sudo/autosuggestions/syntax-highlighting.
+ À lancer en tant qu'utilisateur (pas en root).
